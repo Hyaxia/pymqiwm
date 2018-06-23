@@ -1,12 +1,12 @@
 from typing import List
 from functools import wraps
 from logger import Logger
-from pymqi import MQMIError, CMQC, CMQCFC
-from pymqi import QueueManager, PCFExecute, CD
+from pymqi import QueueManager, PCFExecute, CD, MQMIError
 from pymqiwm.consts import DEFAULT_CHANNEL
-from pymqi.CMQC import MQCA_Q_NAME, MQIA_MAX_Q_DEPTH, MQIA_Q_TYPE, MQQT_LOCAL, MQIA_MSG_DEQ_COUNT, \
-    MQIA_TIME_SINCE_RESET, MQIA_HIGH_Q_DEPTH, MQIA_MSG_ENQ_COUNT
-from pymqi.CMQCFC import MQIACF_PURGE, MQPO_YES
+from pymqi.CMQC import MQIA_MAX_Q_DEPTH, MQQT_LOCAL, MQIA_MSG_DEQ_COUNT, \
+    MQIA_TIME_SINCE_RESET, MQIA_HIGH_Q_DEPTH, MQIA_MSG_ENQ_COUNT, MQCHT_CLNTCONN, MQXPT_TCP, MQRC_HOST_NOT_AVAILABLE,\
+    MQCNO_HANDLE_SHARE_BLOCK, MQCA_Q_NAME, MQIA_Q_TYPE, MQQT_ALL, MQRC_UNKNOWN_OBJECT_NAME
+from pymqi.CMQCFC import MQIACF_PURGE, MQPO_YES, MQCACH_CHANNEL_NAME
 from pymqiwm.logging_messages import *
 
 
@@ -34,6 +34,8 @@ class WMQueueManager(QueueManager):
         We wont get exceptions when we try to connect to an already connected qmgr.
         That's why you should always use the context manager, which simplifies the flow.
 
+        Example for conn_info: "host_name(port),another_host(other_port)"
+
     """
 
     def __init__(self, qmgr_name: str, conn_info: str, channel=DEFAULT_CHANNEL, user=None, password=None):
@@ -48,23 +50,28 @@ class WMQueueManager(QueueManager):
         cd = CD()
         cd.ChannelName = self.channel
         cd.ConnectionName = self.conn_info
-        cd.ChannelType = CMQC.MQCHT_CLNTCONN
-        cd.TransportType = CMQC.MQXPT_TCP
+        cd.ChannelType = MQCHT_CLNTCONN
+        cd.TransportType = MQXPT_TCP
         return cd
 
     def safe_connect(self):
+        """
+        A function for connecting safely to the queue manager.
+        If the there is already an open connection to the queue manager, the open connection will be used,
+        so the developer does'nt have to deal with the check for the connection.
+        """
         try:
             opts = self.__get_connection_options()
             self.connect_with_options(self.qmgr_name, cd=self.__get_cd(), user=self.user,
                                       password=self.password, opts=opts)
             Logger.info(QMGR_CONNECTION_INFO.format(self.qmgr_name))
         except MQMIError as e:
-            if e.reason == CMQC.MQRC_HOST_NOT_AVAILABLE:
+            if e.reason == MQRC_HOST_NOT_AVAILABLE:
                 Logger.error(QMGR_CONNECTION_ERROR.format(self.qmgr_name, self.conn_info, str(e)))
                 raise (QMGR_CONNECTION_ERROR.format(self.qmgr_name, self.conn_info, str(e)))
 
     def __get_connection_options(self):
-        return CMQC.MQCNO_HANDLE_SHARE_BLOCK
+        return MQCNO_HANDLE_SHARE_BLOCK
 
     def __get_pcf(self):
         return PCFExecute(self)
@@ -84,14 +91,14 @@ class WMQueueManager(QueueManager):
         :return: list of found queues or an empty one
         """
         args = {
-            CMQC.MQCA_Q_NAME: value_for_search,
-            CMQC.MQIA_Q_TYPE: CMQC.MQQT_ALL
+            MQCA_Q_NAME: value_for_search,
+            MQIA_Q_TYPE: MQQT_ALL
         }
         pcf = self.__get_pcf()
         try:
             response = pcf.MQCMD_INQUIRE_Q(args)
         except MQMIError as e:
-            if e.reason == CMQC.MQRC_UNKNOWN_OBJECT_NAME:
+            if e.reason == MQRC_UNKNOWN_OBJECT_NAME:
                 Logger.info(NO_QUEUES_FOUND_INFO)
                 return []
             else:
@@ -99,9 +106,9 @@ class WMQueueManager(QueueManager):
                 raise
         else:
             for queue_info in response:
-                queue_name = queue_info[CMQC.MQCA_Q_NAME]
+                queue_name = queue_info[MQCA_Q_NAME]
                 Logger.info(QUEUE_FOUND_INFO.format(queue_name))
-            return [queue_info[CMQC.MQCA_Q_NAME] for queue_info in response]
+            return [queue_info[MQCA_Q_NAME] for queue_info in response]
 
     @has_to_be_connected
     def display_channels(self, value_for_search):
@@ -109,12 +116,12 @@ class WMQueueManager(QueueManager):
         :param value_for_search: For example, "SYSTEM.*" will get all the channels with SYSTEM at the start
         :return: list of found channels or an empty one
         """
-        args = {CMQCFC.MQCACH_CHANNEL_NAME: value_for_search}
+        args = {MQCACH_CHANNEL_NAME: value_for_search}
         pcf = self.__get_pcf()
         try:
             response = pcf.MQCMD_INQUIRE_CHANNEL(args)
         except MQMIError as e:
-            if e.reason == CMQC.MQRC_UNKNOWN_OBJECT_NAME:
+            if e.reason == MQRC_UNKNOWN_OBJECT_NAME:
                 Logger.info(NO_CHANNELS_FOUND_INFO.format(value_for_search))
                 return []
             else:
@@ -122,9 +129,9 @@ class WMQueueManager(QueueManager):
                 raise
         else:
             for channel_info in response:
-                channel_name = channel_info[CMQCFC.MQCACH_CHANNEL_NAME]
+                channel_name = channel_info[MQCACH_CHANNEL_NAME]
                 Logger.info(CHANNEL_FOUND_INFO.format(channel_name))
-            return [channel_info[CMQCFC.MQCACH_CHANNEL_NAME] for channel_info in response]
+            return [channel_info[MQCACH_CHANNEL_NAME] for channel_info in response]
 
     @has_to_be_connected
     def create_local_queue(self, queue_name, depth=5000):

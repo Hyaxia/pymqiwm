@@ -1,8 +1,9 @@
 from logger import Logger
 from pymqi import Queue
 from pymqi import MQMIError
-from pymqi import MD, GMO, CMQC
-from pymqi.CMQC import MQIA_CURRENT_Q_DEPTH, MQRC_NO_MSG_AVAILABLE, MQRC_NOT_OPEN_FOR_INPUT, MQRC_NOT_OPEN_FOR_OUTPUT
+from pymqi import MD, GMO
+from pymqi.CMQC import MQIA_CURRENT_Q_DEPTH, MQRC_NO_MSG_AVAILABLE, MQRC_NOT_OPEN_FOR_INPUT, MQRC_NOT_OPEN_FOR_OUTPUT,\
+    MQMI_NONE, MQGMO_WAIT, MQGMO_FAIL_IF_QUIESCING, MQGMO_BROWSE_NEXT, MQWI_UNLIMITED, MQGI_NONE, MQCI_NONE, MQOO_BROWSE
 from pymqiwm.queue_manager import WMQueueManager
 from pymqiwm.logging_messages import *
 
@@ -124,7 +125,7 @@ class WMQueue(Queue):
                 self.__reset_md(md)  # Reset the md so we can reuse the same 'md' object again.
 
             except MQMIError as e:
-                if e.reason == CMQC.MQRC_NO_MSG_AVAILABLE:
+                if e.reason == MQRC_NO_MSG_AVAILABLE:
                     if seconds_wait_interval != -1:
                         keep_running = False
                 else:
@@ -138,7 +139,7 @@ class WMQueue(Queue):
         Logs any errors that rise beside the one above^
         :return:
         """
-        self.__reset_open_options(CMQC.MQOO_BROWSE)
+        self.__reset_open_options(MQOO_BROWSE)
 
         keep_running = True
 
@@ -151,7 +152,7 @@ class WMQueue(Queue):
                 yield message
                 self.__reset_md(md)
             except MQMIError as e:
-                if e.reason == CMQC.MQRC_NO_MSG_AVAILABLE:
+                if e.reason == MQRC_NO_MSG_AVAILABLE:
                     keep_running = False  # There are no more messages on the queue to browse
                 else:
                     Logger.error(BROWSE_MESSAGES_ERROR.format(self.queue_name))
@@ -161,20 +162,20 @@ class WMQueue(Queue):
         return MD()
 
     def __reset_md(self, md: MD):
-        md.MsgId = CMQC.MQMI_NONE
-        md.CorrelId = CMQC.MQCI_NONE
-        md.GroupId = CMQC.MQGI_NONE
+        md.MsgId = MQMI_NONE
+        md.CorrelId = MQCI_NONE
+        md.GroupId = MQGI_NONE
 
     def __get_and_wait_gmo(self, wait_interval):
         gmo = GMO()
-        gmo.Options = CMQC.MQGMO_WAIT | CMQC.MQGMO_FAIL_IF_QUIESCING
+        gmo.Options = MQGMO_WAIT | MQGMO_FAIL_IF_QUIESCING
         gmo.WaitInterval = wait_interval  # 5000 = 5 seconds
         return gmo
 
     def __browse_messages_gmo(self):
         gmo = GMO()
-        gmo.Options = CMQC.MQGMO_BROWSE_NEXT
-        gmo.WaitInterval = CMQC.MQWI_UNLIMITED
+        gmo.Options = MQGMO_BROWSE_NEXT
+        gmo.WaitInterval = MQWI_UNLIMITED
         return gmo
 
     def __reset_open_options(self, *open_opts):
