@@ -1,0 +1,4 @@
+*.pyc
+venv/
+testovich.py
+__pychache__/
