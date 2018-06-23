@@ -3,8 +3,8 @@ from pymqi import Queue
 from pymqi import MQMIError
 from pymqi import MD, GMO, CMQC
 from pymqi.CMQC import MQIA_CURRENT_Q_DEPTH, MQRC_NO_MSG_AVAILABLE, MQRC_NOT_OPEN_FOR_INPUT, MQRC_NOT_OPEN_FOR_OUTPUT
-from pymqim.queue_manager import WMQueueManager
-from pymqim.logging_messages import *
+from pymqiwm.queue_manager import WMQueueManager
+from pymqiwm.logging_messages import *
 
 
 class WMQueue(Queue):

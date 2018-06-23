@@ -3,11 +3,11 @@ from functools import wraps
 from logger import Logger
 from pymqi import MQMIError, CMQC, CMQCFC
 from pymqi import QueueManager, PCFExecute, CD
-from pymqim.consts import DEFAULT_CHANNEL
+from pymqiwm.consts import DEFAULT_CHANNEL
 from pymqi.CMQC import MQCA_Q_NAME, MQIA_MAX_Q_DEPTH, MQIA_Q_TYPE, MQQT_LOCAL, MQIA_MSG_DEQ_COUNT, \
     MQIA_TIME_SINCE_RESET, MQIA_HIGH_Q_DEPTH, MQIA_MSG_ENQ_COUNT
 from pymqi.CMQCFC import MQIACF_PURGE, MQPO_YES
-from pymqim.logging_messages import *
+from pymqiwm.logging_messages import *
 
 
 def has_to_be_connected(func):
