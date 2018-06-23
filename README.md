@@ -13,5 +13,5 @@ pymqi module works.
 I hope that this piece of code will be helpful for anyone who tries to use the pymqi module.
 
 
-
-
+Few pieces of the code where used from the project https://github.com/dsuch/pymqi/blob/master/docs/examples.rst, full credit goes to him.
+I encourage you to check his work.
