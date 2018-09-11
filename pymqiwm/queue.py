@@ -1,11 +1,8 @@
-from logger import Logger
 from pymqi import Queue
 from pymqi import MQMIError
 from pymqi import MD, GMO
 from pymqi.CMQC import MQIA_CURRENT_Q_DEPTH, MQRC_NO_MSG_AVAILABLE, MQRC_NOT_OPEN_FOR_INPUT, MQRC_NOT_OPEN_FOR_OUTPUT,\
     MQMI_NONE, MQGMO_WAIT, MQGMO_FAIL_IF_QUIESCING, MQGMO_BROWSE_NEXT, MQWI_UNLIMITED, MQGI_NONE, MQCI_NONE, MQOO_BROWSE
-from pymqiwm.queue_manager import WMQueueManager
-from pymqiwm.logging_messages import *
 
 
 class WMQueue(Queue):
@@ -27,21 +24,34 @@ class WMQueue(Queue):
 
     """
 
-    def __init__(self, qmgr: WMQueueManager, queue_name: str):
-        self.queue_descriptor = queue_name
-        self.qmgr = qmgr
-        self.queue_name = queue_name
-        assert qmgr.is_connected, "Queue manager object has to be connected"
+    def __init__(self, qmgr, queue_name: str):
+        self.__qmgr = qmgr
+        self.__queue_name = queue_name
         super(WMQueue, self).__init__(qmgr, queue_name)
-        Logger.info(QUEUE_CONNECTION_INFO.format(self.queue_name))
+
+    @property
+    def related_qmgr(self):
+        return self.__qmgr
+
+    @property
+    def queue_name(self):
+        return self.__queue_name
+
+    def __enter__(self):
+        assert self.__qmgr.is_connected, "Has to be connected to the queue manager"
+        self.open(self.__queue_name)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def safe_put(self, msg, *opts):
         """
         A function that lets you perform the 'put' action without worrying about anything.
         If the queue is not open for performing the 'put' action, it will reset the open options accordingly.
-        If there will be an error it will log it and raise it.
         :param msg: The body of the message that will be written to the queue
         :param opts: can be specified for further instructions.
+        :type msg: str
         """
         try:
             self.put(msg, *opts)
@@ -50,7 +60,6 @@ class WMQueue(Queue):
                 self.__reset_open_options()
                 self.put(msg, *opts)
                 return
-            Logger.error(PUT_MESSAGE_ERROR.format(self.queue_name, str(e)))
             raise
 
     def safe_get(self, max_length=None, *opts):
@@ -58,58 +67,39 @@ class WMQueue(Queue):
         A function that lets you perform the 'get' action without worrying about anything.
         If the queue is not open for performing the 'get' action, it will reset the open options accordingly.
         If there are no messages to pull from the queue it will only raise the exception.
-        If there is another error, it will log it and raise it.
         :param max_length: max can length can be set for the message that is being red
         :param opts: can be specified for further instructions.
-        :return:
+        :type max_length: int or None
+        :return: Option 1: A message from the queue
+                 Option 2: None meaning that there are no more messages in the queue
         """
         try:
             message = self.get(max_length, *opts)
         except MQMIError as e:
             if e.reason == MQRC_NO_MSG_AVAILABLE:
-                raise
-            elif e.reason == MQRC_NOT_OPEN_FOR_INPUT:
+                return  # no message was found in the queue
+            elif e.reason == MQRC_NOT_OPEN_FOR_INPUT:  # if queue was not open for reading
                 self.__reset_open_options()
                 message = self.get(max_length, *opts)
-                return message
-            Logger.error(GET_MESSAGE_ERROR.format(self.queue_name, str(e)))
+                return str(message)
             raise
         else:
-            return message
-
-    def safe_open(self, q_desc, *opts):
-        """
-        A function that lets you perform the 'open' action.
-        The function will log any error that rises and raise it.
-        :param q_desc: String that contains the name of the queue, or an object descriptor of the queue.
-        :param opts: open options.
-        """
-        try:
-            self.open(q_desc, *opts)
-        except Exception as e:
-            Logger.error(OPEN_QUEUE_ERROR.format(self.queue_name, str(e)))
-            raise
+            return str(message)
 
     def get_current_depth(self):
-        """
-        A function that returns the current depth of the queue
-        :return:
-        """
-        try:
-            return self.inquire(MQIA_CURRENT_Q_DEPTH)
-        except MQMIError as e:
-            Logger.error(DEPTH_ERROR.format(self.queue_name))
-            raise
+        return self.inquire(MQIA_CURRENT_Q_DEPTH)
 
-    def get_messages_while_waiting(self, seconds_wait_interval=0):
+    def get_messages_while_waiting(self, seconds_wait_interval=0, max_length=None):
         """
         Yields messages that are being red from the queue.
-        It will handle any "No more message on the queue" errors.
-        ^It will log any error that raises if its not the one above^
+        Handles any "No more message on the queue" errors.
+        :param max_length: max length of a message that will be red from the queue
         :param seconds_wait_interval:
                         IF not specified:  Will exit as soon as there are no messages left on queue.
                         IF -1 specified: Will enter into an infinite loop yielding any message that enters the queue.
                         ELSE : Will wait the time specified before exiting the loop.
+        :type seconds_wait_interval: int
+        :type max_length: int
         """
         self.__reset_open_options()
 
@@ -120,23 +110,23 @@ class WMQueue(Queue):
 
         while keep_running:
             try:
-                message = self.safe_get(None, md, gmo)  # Wait up to gmo.WaitInterval for a new message.
-                yield message
+                message = self.get(max_length, md, gmo)  # Wait up to gmo.WaitInterval for a new message.
+                yield str(message)
                 self.__reset_md(md)  # Reset the md so we can reuse the same 'md' object again.
 
             except MQMIError as e:
-                if e.reason == MQRC_NO_MSG_AVAILABLE:
+                if e.reason == MQRC_NO_MSG_AVAILABLE:  # if no msg available in queue
                     if seconds_wait_interval != -1:
                         keep_running = False
                 else:
-                    Logger.error(READING_WAITING_ERROR.format(self.queue_name))
                     raise
 
-    def browse_messages(self):
+    def browse_messages(self, max_length=None):
         """
         Lets you browse the messages that are on the queue atm by yielding them.
         Stops after it goes over all of the messages in the queue.
-        Logs any errors that rise beside the one above^
+        :param max_length: Max length of message located on the queue that will be red
+        :type max_length: int
         :return:
         """
         self.__reset_open_options(MQOO_BROWSE)
@@ -148,14 +138,13 @@ class WMQueue(Queue):
 
         while keep_running:
             try:
-                message = self.safe_get(None, md, gmo)
-                yield message
+                message = self.get(max_length, md, gmo)
+                yield str(message)
                 self.__reset_md(md)
             except MQMIError as e:
                 if e.reason == MQRC_NO_MSG_AVAILABLE:
                     keep_running = False  # There are no more messages on the queue to browse
                 else:
-                    Logger.error(BROWSE_MESSAGES_ERROR.format(self.queue_name))
                     raise  # there was an error browsing the queue
 
     def __get_message_descriptor(self):
@@ -183,7 +172,8 @@ class WMQueue(Queue):
             self.close()
         except:
             pass
-        self.safe_open(self.queue_name, *open_opts)
+        self.open(self.__queue_name, *open_opts)
+
 
 
 
