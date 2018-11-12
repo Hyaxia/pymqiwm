@@ -1,8 +1,12 @@
+from contextlib import suppress
 from pymqi import Queue
 from pymqi import MQMIError
 from pymqi import MD, GMO
-from pymqi.CMQC import MQIA_CURRENT_Q_DEPTH, MQRC_NO_MSG_AVAILABLE, MQRC_NOT_OPEN_FOR_INPUT, MQRC_NOT_OPEN_FOR_OUTPUT,\
-    MQMI_NONE, MQGMO_WAIT, MQGMO_FAIL_IF_QUIESCING, MQGMO_BROWSE_NEXT, MQWI_UNLIMITED, MQGI_NONE, MQCI_NONE, MQOO_BROWSE
+from pymqi.CMQC import (MQIA_CURRENT_Q_DEPTH, MQRC_NO_MSG_AVAILABLE,
+                        MQRC_NOT_OPEN_FOR_INPUT, MQRC_NOT_OPEN_FOR_OUTPUT,
+                        MQMI_NONE, MQGMO_WAIT, MQGMO_FAIL_IF_QUIESCING,
+                        MQGMO_BROWSE_NEXT, MQWI_UNLIMITED, MQGI_NONE,
+                        MQCI_NONE, MQOO_BROWSE)
 
 
 class WMQueue(object):
@@ -15,8 +19,6 @@ class WMQueue(object):
              >>> queue = WMQueue(qmgr=..., queue_name=...)
 
              >>> with queue:
-             >>>     ...
-             >>>     ...
              >>>     ...
 
     """
@@ -104,11 +106,10 @@ class WMQueue(object):
                 return  # no message was found in the queue
             elif e.reason == MQRC_NOT_OPEN_FOR_INPUT:  # if queue was not open for reading
                 self.__reset_open_options()
-                message = self.queue.get(max_length, *opts)
-                return str(message)
+                return self.queue.get(max_length, *opts)
             raise
         else:
-            return str(message)
+            return message
 
     def depth(self):
         return self.queue.inquire(MQIA_CURRENT_Q_DEPTH)
@@ -122,7 +123,7 @@ class WMQueue(object):
          >>> with queue:
          >>>     for message in queue.read_messages_while_waiting(5):
          >>>         # will wait 5 seconds before exiting the for loop
-         >>>         print(message)
+         >>>         print(str(message))
         :param max_length: max length of a message that will be red from the queue
         :param seconds_wait_interval:
                         IF not specified:  Will exit as soon as there are no messages left on queue.
@@ -131,8 +132,6 @@ class WMQueue(object):
         :type seconds_wait_interval: int
         :type max_length: int
         """
-        self.__reset_open_options()
-
         keep_running = True
 
         gmo = self.__get_and_wait_gmo(abs(seconds_wait_interval) * 1000)
@@ -140,8 +139,8 @@ class WMQueue(object):
 
         while keep_running:
             try:
-                message = self.queue.get(max_length, md, gmo)  # Wait up to gmo.WaitInterval for a new message.
-                yield str(message)
+                message = self.get(max_length, md, gmo)  # Wait up to gmo.WaitInterval for a new message.
+                yield message
                 self.__reset_md(md)  # Reset the md so we can reuse the same 'md' object again.
 
             except MQMIError as e:
@@ -160,7 +159,7 @@ class WMQueue(object):
          >>> queue = WMQueue(qmgr=..., queue_name=...)
          >>> with queue:
          >>>     for message in queue.browse_messages():
-         >>>         print(message)
+         >>>         print(str(message))
         :param max_length: Max length of message located on the queue that will be red
         :type max_length: int
         :return:
@@ -174,8 +173,8 @@ class WMQueue(object):
 
         while keep_running:
             try:
-                message = self.queue.get(max_length, md, gmo)
-                yield str(message)
+                message = self.get(max_length, md, gmo)
+                yield message
                 self.__reset_md(md)
             except MQMIError as e:
                 if e.reason == MQRC_NO_MSG_AVAILABLE:
@@ -204,12 +203,6 @@ class WMQueue(object):
         return gmo
 
     def __reset_open_options(self, *open_opts):
-        try:
+        with suppress(Exception):
             self.queue.close()
-        except:
-            pass
         self.queue.open(self.name, *open_opts)
-
-
-
-

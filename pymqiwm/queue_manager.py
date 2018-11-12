@@ -18,14 +18,12 @@ def has_to_be_connected(func):
     return wrapper
 
 
-class WMQueueManager(QueueManager):
+class WMQueueManager(object):
     """
 
         A wrapper class for the pymqi.QueueManager class.
         Usage:
-             >>> host = "localhost"
-             >>> port = 1414
-             >>> qmgr = WMQueueManager(qmgr_name, channel, host, port, user=None, password=None)
+             >>> qmgr = WMQueueManager(...)
 
             >>> with qmgr:
                 ...
@@ -45,36 +43,35 @@ class WMQueueManager(QueueManager):
                  channel=DEFAULT_CHANNEL,
                  user=None,
                  password=None):
-        super(WMQueueManager, self).__init__(None)
-        self.__qmgr_name = qmgr_name
-        self.__channel = channel
+        self.__name = qmgr_name
         self.__user = user
         self.__password = password
-        self.__conn_info = conn_info
+        self.__cd = self.__get_cd(channel, conn_info)
+        self.qmgr = QueueManager(None)
 
     @property
-    def qmgr_name(self):
-        return self.__qmgr_name
+    def qmgr_name(self) -> str:
+        return self.__name
 
     @property
-    def conn_info(self):
+    def conn_info(self) -> str:
         return self.conn_info
 
     @property
-    def channel(self):
-        return self.__channel
+    def user(self) -> str:
+        return self.__user
 
     @property
-    def user(self):
-        return self.__user
+    def connection_details(self) -> CD:
+        return self.__cd
 
     def __enter__(self):
         self.__safe_connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.is_connected:
-            self.disconnect()
+        if self.qmgr.is_connected:
+            self.qmgr.disconnect()
 
     def __safe_connect(self):
         """
@@ -83,17 +80,16 @@ class WMQueueManager(QueueManager):
         so the developer does'nt have to deal with the check for the connection.
         """
         opts = self.__get_connection_options()
-        conn_details = self.__get_cd()
-        self.connect_with_options(self.__qmgr_name,
-                                  user=self.__user,
-                                  password=self.__password,
-                                  cd=conn_details,
-                                  opts=opts)
+        self.qmgr.connect_with_options(self.__name,
+                                       user=self.__user,
+                                       password=self.__password,
+                                       cd=self.__cd,
+                                       opts=opts)
 
-    def __get_cd(self):
+    def __get_cd(self, channel, conn) -> CD:
         cd = CD()
-        cd.ChannelName = self.__channel
-        cd.ConnectionName = self.__conn_info
+        cd.ChannelName = channel
+        cd.ConnectionName = conn
         cd.ChannelType = MQCHT_CLNTCONN
         cd.TransportType = MQXPT_TCP
         return cd
@@ -102,10 +98,10 @@ class WMQueueManager(QueueManager):
         return MQCNO_HANDLE_SHARE_BLOCK
 
     def __get_pcf(self):
-        return PCFExecute(self)
+        return PCFExecute(self.qmgr)
 
     @has_to_be_connected
-    def display_queues(self, value_for_search):
+    def display_queues(self, value_for_search) -> [str]:
         """
         :param value_for_search: For example, "SYSTEM.*" will get all the queues with SYSTEM at the start
         :return: list of found queues or an empty one
@@ -126,7 +122,7 @@ class WMQueueManager(QueueManager):
             return [queue_info[MQCA_Q_NAME] for queue_info in response]
 
     @has_to_be_connected
-    def display_channels(self, value_for_search):
+    def display_channels(self, value_for_search) -> [str]:
         """
         :param value_for_search: For example, "SYSTEM.*" will get all the channels with SYSTEM at the start
         :return: list of found channels or an empty one
@@ -167,7 +163,7 @@ class WMQueueManager(QueueManager):
         pcf.MQCMD_DELETE_Q(args)
 
     @has_to_be_connected
-    def get_stats_from_queue(self, queue_name):
+    def get_stats_from_queue(self, queue_name) -> dict:
         """ Return dict containing different stats about the queue """
         pcf = self.__get_pcf()
         args = {
