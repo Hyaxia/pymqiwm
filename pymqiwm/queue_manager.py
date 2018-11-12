@@ -1,11 +1,12 @@
 from functools import wraps
 from pymqi import QueueManager, PCFExecute, CD, MQMIError
 from pymqiwm.consts import DEFAULT_CHANNEL
-from pymqi.CMQC import MQIA_MAX_Q_DEPTH, MQQT_LOCAL, MQIA_MSG_DEQ_COUNT, \
-                       MQIA_TIME_SINCE_RESET, MQIA_HIGH_Q_DEPTH, \
-                       MQIA_MSG_ENQ_COUNT, MQCHT_CLNTCONN, MQXPT_TCP, \
-                       MQCNO_HANDLE_SHARE_BLOCK, MQCA_Q_NAME, MQIA_Q_TYPE, \
-                       MQQT_ALL, MQRC_UNKNOWN_OBJECT_NAME
+from pymqi.CMQC import (
+    MQIA_MAX_Q_DEPTH, MQQT_LOCAL, MQIA_MSG_DEQ_COUNT, MQIA_TIME_SINCE_RESET,
+    MQIA_HIGH_Q_DEPTH, MQCA_Q_NAME, MQIA_Q_TYPE,
+    MQIA_MSG_ENQ_COUNT, MQCHT_CLNTCONN, MQXPT_TCP, MQCNO_HANDLE_SHARE_BLOCK,
+    MQQT_ALL, MQRC_UNKNOWN_OBJECT_NAME
+)
 from pymqi.CMQCFC import MQIACF_PURGE, MQPO_YES, MQCACH_CHANNEL_NAME
 
 
@@ -22,10 +23,11 @@ class WMQueueManager(QueueManager):
 
         A wrapper class for the pymqi.QueueManager class.
         Usage:
+             >>> host = "localhost"
+             >>> port = 1414
+             >>> qmgr = WMQueueManager(qmgr_name, channel, host, port, user=None, password=None)
 
-            qmgr = MQueueManager(qmgr_name, channel, host, port, user, password)
-
-            with qmgr:
+            >>> with qmgr:
                 ...
                 ...
 
@@ -166,6 +168,7 @@ class WMQueueManager(QueueManager):
 
     @has_to_be_connected
     def get_stats_from_queue(self, queue_name):
+        """ Return dict containing different stats about the queue """
         pcf = self.__get_pcf()
         args = {
             MQCA_Q_NAME: queue_name
