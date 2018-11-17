@@ -34,6 +34,7 @@ Feature Support
 (which is not the case with pymqi, gotta handle different `open` options)
 Requests officially supports Python 2.7 & 3.4–3.7, and runs great on
 PyPy.
+-   Much more different functionality to make your life easy working with IBM MQ
 
 How to Contribute
 -----------------
