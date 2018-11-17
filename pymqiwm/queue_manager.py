@@ -38,12 +38,12 @@ class WMQueueManager(object):
     """
 
     def __init__(self,
-                 qmgr_name: str,
+                 name: str,
                  conn_info: str,
                  channel=DEFAULT_CHANNEL,
                  user=None,
                  password=None):
-        self.__name = qmgr_name
+        self.__name = name
         self.__user = user
         self.__password = password
         self.__cd = self.__get_cd(channel, conn_info)
@@ -64,6 +64,10 @@ class WMQueueManager(object):
     @property
     def connection_details(self) -> CD:
         return self.__cd
+
+    @property
+    def is_connected(self):
+        return self.qmgr.is_connected
 
     def __enter__(self):
         self.__safe_connect()
@@ -140,9 +144,9 @@ class WMQueueManager(object):
             return [channel_info[MQCACH_CHANNEL_NAME] for channel_info in response]
 
     @has_to_be_connected
-    def create_local_queue(self, queue_name, depth=5000):
+    def create_local_queue(self, name, depth=5000):
         args = {
-            MQCA_Q_NAME: queue_name,
+            MQCA_Q_NAME: name,
             MQIA_Q_TYPE: MQQT_LOCAL,
             MQIA_MAX_Q_DEPTH: depth,
         }
@@ -151,9 +155,9 @@ class WMQueueManager(object):
         pcf.MQCMD_CREATE_Q(args)
 
     @has_to_be_connected
-    def delete_queue(self, queue_name, purge=False):
+    def delete_queue(self, name, purge=False):
         args = {
-            MQCA_Q_NAME: queue_name,
+            MQCA_Q_NAME: name,
         }
 
         if purge:
@@ -163,11 +167,11 @@ class WMQueueManager(object):
         pcf.MQCMD_DELETE_Q(args)
 
     @has_to_be_connected
-    def get_stats_from_queue(self, queue_name) -> dict:
+    def get_stats_from_queue(self, name) -> dict:
         """ Return dict containing different stats about the queue """
         pcf = self.__get_pcf()
         args = {
-            MQCA_Q_NAME: queue_name
+            MQCA_Q_NAME: name
         }
 
         queue_stats = pcf.MQCMD_RESET_Q_STATS(args)[0]
