@@ -12,7 +12,7 @@ How easy is it your ask? here's an answer:
 >>> with queue:
 >>>     for message in queue.browse_messages():
 >>>         print(message)
-will print all the messages in the queue
+will iterate over all message in the queue and print them one by one
 >>>     queue.put("test message")
 >>>     queue.get()
 b"test message"
