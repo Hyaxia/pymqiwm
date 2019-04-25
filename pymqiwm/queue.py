@@ -82,7 +82,7 @@ class WMQueue(object):
             self.queue.put(msg, *opts)
         except MQMIError as e:
             if e.reason == MQRC_NOT_OPEN_FOR_OUTPUT:
-                self.__reset_open_options()
+                self._reset_open_options()
                 self.queue.put(msg, *opts)
                 return
             raise
@@ -106,7 +106,7 @@ class WMQueue(object):
             message = self.queue.get(max_length, *opts)
         except MQMIError as e:
             if e.reason == MQRC_NOT_OPEN_FOR_INPUT:  # if queue was not open for reading
-                self.__reset_open_options()
+                self._reset_open_options()
                 return self.queue.get(max_length, *opts)
             raise
         else:
@@ -125,7 +125,7 @@ class WMQueue(object):
          >>> queue = WMQueue(qmgr=..., name=...)
          >>> with queue:
          >>>     for message in queue.read_messages_while_waiting(5):
-         >>>         # will wait 5 seconds before exiting the for loop
+         >>>         # will wait 5 seconds before exiting the for loop if not new message has arrived
          >>>         print(str(message))
         :param max_length: max length of a message that will be red from the queue
         :param seconds_wait_interval:
@@ -137,16 +137,16 @@ class WMQueue(object):
         """
         keep_running = True
 
-        gmo = self.__get_and_wait_gmo(
+        gmo = self._get_and_wait_gmo(
             wait_interval=abs(seconds_wait_interval) * 1000
         )
-        md = self.__get_message_descriptor()
+        md = self._get_message_descriptor()
 
         while keep_running:
             try:
                 message = self.get(max_length, md, gmo)  # Wait up to gmo.WaitInterval for a new message.
                 yield message
-                self.__reset_md(md)  # Reset the md so we can reuse the same 'md' object again.
+                self._reset_md(md)
 
             except MQMIError as e:
                 if e.reason == MQRC_NO_MSG_AVAILABLE:  # if no msg available in queue
@@ -169,45 +169,66 @@ class WMQueue(object):
         :type max_length: int
         :return:
         """
-        self.__reset_open_options(MQOO_BROWSE)
+        self._reset_open_options(MQOO_BROWSE)
 
         keep_running = True
 
-        gmo = self.__browse_messages_gmo()
-        md = self.__get_message_descriptor()
+        gmo = self._browse_messages_gmo()
+        md = self._get_message_descriptor()
 
         while keep_running:
             try:
                 message = self.get(max_length, md, gmo)
                 yield message
-                self.__reset_md(md)
+                self._reset_md(md)
             except MQMIError as e:
                 if e.reason == MQRC_NO_MSG_AVAILABLE:
                     keep_running = False  # There are no more messages on the queue to browse
                 else:
                     raise  # there was an error browsing the queue
 
-    def __get_message_descriptor(self):
+    def _get_message_descriptor(self):
+        """ Returns an empty message descriptor object """
         return MD()
 
-    def __reset_md(self, md: MD):
+    def _reset_md(self, md: MD):
+        """
+        Resets the message descriptor so a new message can be
+        received with the same MD object.
+        :param md: message descriptor object
+        """
         md.MsgId = MQMI_NONE
         md.CorrelId = MQCI_NONE
         md.GroupId = MQGI_NONE
 
-    def __get_and_wait_gmo(self, wait_interval):
+    def _get_and_wait_gmo(self, wait_interval):
+        """
+        Creates a GMO object for reading and waiting for new messages.
+        :param wait_interval: Max time in milliseconds to wait for new message to arrive.
+        :return: GMO object.
+        """
         gmo = GMO()
         gmo.Options = MQGMO_WAIT | MQGMO_FAIL_IF_QUIESCING
         gmo.WaitInterval = wait_interval  # 5000 = 5 seconds
         return gmo
 
-    def __browse_messages_gmo(self):
+    def _browse_messages_gmo(self):
+        """
+        Creates a GMO object for browsing messages from a queue.
+        :return: GMO object.
+        """
         gmo = GMO()
         gmo.Options = MQGMO_BROWSE_NEXT
         gmo.WaitInterval = MQWI_UNLIMITED
         return gmo
 
-    def __reset_open_options(self, *open_opts):
+    def _reset_open_options(self, *open_opts):
+        """
+        Resets the mode that the queue is opened with.
+        If `*open_opts` is specified, will open the queue with the
+        options passed in.
+        :param open_opts: An optional new mode to open the queue with.
+        """
         with suppress(Exception):
             self.queue.close()
         self.queue.open(self.name, *open_opts)

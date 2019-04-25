@@ -28,11 +28,11 @@ Feature Support
 ---------------
 
 -   Easy to understand interface
--   Making business logic much more clearer
--   Never leaving open handlers (`with` context managers)
--   Enables to put and get messages from queue whenever you want 
-(which is not the case with pymqi, gotta handle different `open` options)
--   Much more different functionality to make your life easy working with IBM MQ
+-   Much clearer business logic, hiding all the low lvl interaction for the wrapper to handle
+-   Safe connection handling, no open connections are left behind (`with` context managers)
+-   Enables free use of the queue object, reading a writing as you will, 
+(which is not the case with pymqi, there is a need to handle different `open` options)
+-   Out of the box functionality that lest you browse and read messages in a sophisticated way
 
 How to Contribute
 -----------------

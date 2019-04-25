@@ -11,6 +11,7 @@ from pymqi.CMQCFC import MQIACF_PURGE, MQPO_YES, MQCACH_CHANNEL_NAME
 
 
 def has_to_be_connected(func):
+    """ Wrapper around a function that makes sure that the connection to the qmgr is active """
     @wraps(func)
     def wrapper(self: QueueManager, *args, **kwargs):
         assert self.is_connected, "Has to be connected to the queue manager"
@@ -43,15 +44,15 @@ class WMQueueManager(object):
                  channel=DEFAULT_CHANNEL,
                  user=None,
                  password=None):
-        self.__name = name
-        self.__user = user
-        self.__password = password
-        self.__cd = self.__get_cd(channel, conn_info)
+        self._name = name
+        self._user = user
+        self._password = password
+        self._cd = self._get_cd(channel, conn_info)
         self.qmgr = QueueManager(None)
 
     @property
     def qmgr_name(self) -> str:
-        return self.__name
+        return self._name
 
     @property
     def conn_info(self) -> str:
@@ -59,38 +60,48 @@ class WMQueueManager(object):
 
     @property
     def user(self) -> str:
-        return self.__user
+        return self._user
 
     @property
     def connection_details(self) -> CD:
-        return self.__cd
+        return self._cd
 
     @property
     def is_connected(self):
+        """ Checks if the connection to the qmgr is active """
         return self.qmgr.is_connected
 
     def __enter__(self):
-        self.__safe_connect()
+        """ Initializes the connection to the qmgr """
+        self._safe_connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """ Makes sure that the connection is closed if its active """
         if self.qmgr.is_connected:
             self.qmgr.disconnect()
 
-    def __safe_connect(self):
+    def _safe_connect(self):
         """
         A function for connecting safely to the queue manager.
         If the there is already an open connection to the queue manager, the open connection will be used,
         so the developer does'nt have to deal with the check for the connection.
         """
-        opts = self.__get_connection_options()
-        self.qmgr.connect_with_options(self.__name,
-                                       user=self.__user,
-                                       password=self.__password,
-                                       cd=self.__cd,
+        opts = self._get_connection_options()
+        self.qmgr.connect_with_options(self._name,
+                                       user=self._user,
+                                       password=self._password,
+                                       cd=self._cd,
                                        opts=opts)
 
-    def __get_cd(self, channel, conn) -> CD:
+    def _get_cd(self, channel, conn) -> CD:
+        """
+        Initializes a ConnectionDetails object.
+        Specifies the transport type, channel type, channel name, and connection string.
+        :param channel: The name of the channel to use when connecting to the qmgr.
+        :param conn: Connection string to the desired qmgr, example of a conn is above.
+        :return: CD object.
+        """
         cd = CD()
         cd.ChannelName = channel
         cd.ConnectionName = conn
@@ -98,10 +109,10 @@ class WMQueueManager(object):
         cd.TransportType = MQXPT_TCP
         return cd
 
-    def __get_connection_options(self):
+    def _get_connection_options(self):
         return MQCNO_HANDLE_SHARE_BLOCK
 
-    def __get_pcf(self):
+    def _get_pcf(self):
         return PCFExecute(self.qmgr)
 
     @has_to_be_connected
@@ -114,7 +125,7 @@ class WMQueueManager(object):
             MQCA_Q_NAME: value_for_search,
             MQIA_Q_TYPE: MQQT_ALL
         }
-        pcf = self.__get_pcf()
+        pcf = self._get_pcf()
         try:
             response = pcf.MQCMD_INQUIRE_Q(args)
         except MQMIError as e:
@@ -132,7 +143,7 @@ class WMQueueManager(object):
         :return: list of found channels or an empty one
         """
         args = {MQCACH_CHANNEL_NAME: value_for_search}
-        pcf = self.__get_pcf()
+        pcf = self._get_pcf()
         try:
             response = pcf.MQCMD_INQUIRE_CHANNEL(args)
         except MQMIError as e:
@@ -145,17 +156,19 @@ class WMQueueManager(object):
 
     @has_to_be_connected
     def create_local_queue(self, name, depth=5000):
+        """ Creates a local queue with a name and depth provided """
         args = {
             MQCA_Q_NAME: name,
             MQIA_Q_TYPE: MQQT_LOCAL,
             MQIA_MAX_Q_DEPTH: depth,
         }
 
-        pcf = self.__get_pcf()
+        pcf = self._get_pcf()
         pcf.MQCMD_CREATE_Q(args)
 
     @has_to_be_connected
     def delete_queue(self, name, purge=False):
+        """ Deletes a queue by its name """
         args = {
             MQCA_Q_NAME: name,
         }
@@ -163,13 +176,13 @@ class WMQueueManager(object):
         if purge:
             args[MQIACF_PURGE] = MQPO_YES
 
-        pcf = self.__get_pcf()
+        pcf = self._get_pcf()
         pcf.MQCMD_DELETE_Q(args)
 
     @has_to_be_connected
     def get_stats_from_queue(self, name) -> dict:
         """ Return dict containing different stats about the queue """
-        pcf = self.__get_pcf()
+        pcf = self._get_pcf()
         args = {
             MQCA_Q_NAME: name
         }
