@@ -21,7 +21,7 @@ b"test message"
 >>>     qmgr.create_local_queue(name="LOCAL")
 ```
 
-Pymqi lets you hide all the complicated interface wit the pymqi package
+pymqiwm lets you hide all the complicated interface wit the pymqi package
 behind easy to understand and easy to use functions.
 
 Feature Support
@@ -37,7 +37,7 @@ Feature Support
 How to Contribute
 -----------------
 
-1.  Fork [the repository](https://github.com/Hyaxia/pymqiwm) on
+1.  Fork [this repository](https://github.com/Hyaxia/pymqiwm) on
     GitHub to start making your changes to the **master** branch (or
     branch off of it).
 2.  Send a pull request.
